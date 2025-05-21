@@ -1,0 +1,1231 @@
+Расширения HandyCache
+Расширение представляет из себя организованный специальным образом скрипт на языке lua.
+
+Для начала использования расширений в HandyCache необходимо чтобы в папке HandyCache находился файл библиотеки lua5.x.dll.
+
+В начале расширения располагается заголовок. Заголовок имеет следующую структуру:
+
+--[[ <HCEXTENSION>
+@field  value
+@field  value
+@field  value
+..
+@field  value
+</HCEXTENSION> ]]
+Поля заголовка расширения
+Имя (field)
+
+Значение (value)
+
+name	Наименование расширения
+author	Имя автора расширения
+homepage	Домашняя страница расширения
+version	Номер версии расширения
+min_HC_version	Номер версии HandyCache, начиная с которой возможно использование данного расширения.
+description	Краткое описание расширения
+rule	Правило (регулярное выражение), которым будет проверяться URL запроса перед вызовом расширения. В заголовке может быть несколько полей rule.
+exception	Исключение (регулярное выражение), которым будет проверяться URL запроса перед вызовом расширения. В заголовке может быть несколько полей exception.
+event	Наименование события, для обработки которого будет вызываться расширение, и через косую черту имя функции, предназначенной для обработки этого события. В заголовке может быть несколько полей event.
+
+Пример заголовка расширения
+--[[ <HCEXTENSION>
+@name            Save or block 403 and 404
+@author          DenZzz
+@homepage        http://save_and_block.com
+@version         0.01
+@min_HC_version  1.0.0.193
+@description     Сохраняет или блокирует ответы 403 и 404
+@exception       _rtsi?_|rts_chart_ru|informer\.rts\.ru/|aton-line\.ru/.*index\.gif
+@exception       ^http://[^/]*rambler\.ru/|^http://192\.168\.\d+\.
+@event           AnswerHeaderReceived/answer
+</HCEXTENSION> ]]
+За заголовком следуют функции-обработчики событий, а также функции вызываемые из этих обработчиков. Когда в HandyCache наступает событие, для которого зарегистрирован обработчик, вызывается соответсвующая функция.
+
+Список обрабатываемых событий
+Событие
+
+Условия возникновения
+
+Init	Возникает при загрузке расширений во время старта HandyCache и при нажатии кнопки Перечитать расширение на вкладке Настройки/Расширения. При загрузке расширения текст файла расширения сохраняется в памяти. Поэтому, если файл расширения изменился, нужно выделить расширение в списке и нажать кнопку Перечитать расширение.
+Options	Возникает при нажатии кнопки Настройки расширения на вкладке Настройки/Расширения.
+Timer1s	Возникает раз в секунду.
+Timer1m	Возникает раз в минуту.
+URLToFileNameConverting	Возникает, когда требуется выполнить преобразование URL в имя файла в кэше.
+BeforeViewInMonitor	Возникает перед созданием новой строки в мониторе.
+BeforeAuthorization	Возникает, когда получен запрос от клиента и принимается решение обрабатывать запрос или отклонить.
+RequestHeaderReceived	Возникает, когда получен заголовок запроса от клиента.
+BeforeRequestHeaderSend	Возникает, когда заголовок запроса готов к отправке на сервер.
+BeforeRequestBodySend	Возникает, когда получена очередная порция данных для отправки на сервер методом POST.
+AnswerHeaderReceived	Возникает, когда получен заголовок ответа от сервера.
+BeforeAnswerHeaderSend	Возникает, когда заголовок ответа готов к отправке клиенту. Заголовок может быть получен от сервера или сформирован самим HandyCache.
+BeforeAnswerBodySend	Возникает, когда получена очередная порция данных для отправки клиенту. Данные могут быть получены от сервера или взяты из кэша. Если данные упакованы, то они перед передачей обработчику распаковываются.
+Destroy	Возникает при завершении работы расширения (при удалении расширения по кнопке Удалить расширение, при перезагрузке расширения по кнопке Перечитать расширение, при закрытии HandyCache)
+
+Перед вызовом функций расширения HandyCache создает в lua-машине две таблицы: hc и re. В первой собраны переменные и функции, позволяющие получать информацию о значениях внутренних переменных HandyCache и изменять некоторые из них. Во второй собраны функции, позволяющие использовать в расширениях возможности библиотеки регулярных выражений PCRE.
+
+
+Переменные таблицы hc, доступные в расширениях
+Имя
+
+Допустимые действия	
+События
+
+Допустимые значения
+
+Описание
+
+ver	чтение	Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend, Destroy	"<строка>"	Строка, содержащая версию HandyCache, например, 'Version 1.00 RC3 (1.0.0.250)'
+version_number	чтение	Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend, Destroy	"<строка>"	Строка, содержащая номер версии HandyCache, например, '1.0.0.250'
+language_id	чтение	Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend, Destroy	<число>	Идентификатор языка, используемого в интерфейсе пользователя в данный момент. Список идентификаторов можно посмотреть, например, здесь.
+script_name	чтение	
+Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+BeforeAuthorization,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend, Destroy
+
+"<строка>"	Путь к файлу текущего расширения.
+event	чтение	
+Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+BeforeAuthorization,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySen, Destroy 
+
+"<строка>"	Содержит наименование обрабатываемого события.
+ini_path	чтение	
+Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerBodySend, Destroy
+
+"<строка>"	Содержит путь к папке с файлами настройки.
+exe_path	чтение	
+Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerBodySend, Destroy
+
+"<строка>"	Содержит путь к папке с файлом HandyCache.exe.
+cache_path	чтение	
+Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerBodySend, Destroy
+
+"<строка>"	Содержит путь к папке кэша.
+listening_port	чтение	
+Init, Options, Timer1s, Timer1m, URLToFileNameConverting, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerBodySend, Destroy
+
+"<строка>"	Содержит порт доступа к HandyCache
+client_connected	чтение	BeforeViewInMonitor, RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	true, false	Принимает значение true, если имеется соединение с клиентом, и - false , если соединение с клиентом разорвано
+connection_index	чтение	URLToFileNameConverting, BeforeViewInMonitor, RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	<число>	Принимает значение номера соединения, для которого вызвано расширение (не путать с номером строки)
+url	чтение	URLToFileNameConverting, BeforeViewInMonitor,
+BeforeAuthorization,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	В соответствие с RFC 2616 п.3.2.2	URL запроса
+method	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	В соответствие с RFC 2616 п.9	Метод, использованный в запросе
+is_https	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	true, false	Принимает значение true, если текущий запрос передается по https-протоколу.
+request_ims
+чтение
+BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend
+<число>
+Время по Гринвичу в числовом представлении, полученное из поля заголовка запроса If-Modified-Since. Если поля If-Modified-Since в заголовке запроса клиента не было, то значение переменной равно нулю.
+hc_ims
+чтение
+BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend
+<число>
+Время по Гринвичу в числовом представлении, добавленное в поле заголовка запроса If-Modified-Since HandyCache при включенной опции Добавить If-Modified-Since при наличии файла в кэше. Если HandyCache не добавлял свое значение в поле If-Modified-Since, то значение переменной равно нулю.
+ignore_traffic	чтение, запись (только в обработчиках BeforeViewInMonitor, RequestHeaderReceived)	URLToFileNameConverting, BeforeViewInMonitor, RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	"<строка>"	
+Добавив в эту строку определенные символы можно запретить учет определенного вида трафика для текущего запроса. Для запрета учета трафика, поступившего из интернета нужно добавить латинский символ "i" или кирилический "и" (строчный или заглавный). Для запрета учета трафика из кэша нужно добавить латинский символ "c" или кирилический "к". Для запрета учета отправленного трафика нужно добавить латинский символ "u" или кирилический "о". Например, для запрета учета всех видов трафика можно добавить в обработчик события строку hc.ignore_traffic='IкО'
+
+use_proxy	чтение, запись	RequestHeaderReceived, BeforeRequestHeaderSend	"<строка>"	Содержит параметры внешнего HTTP прокси-сервера, назначенного для текущего запроса. Пример: "192.186.55.2:8080" или "proxy.com:8081"; если этой переменной присвоено значение "direct", то запрос будет отправлен без использования прокси
+use_proxy_login	чтение, запись	RequestHeaderReceived, BeforeRequestHeaderSend	"<строка>"	Содержит логин доступа внешнего HTTP прокси-сервера, назначенного для текущего запроса (basic-авторизация). Пример: "user:password"
+use_bound_ip	чтение, запись	RequestHeaderReceived, BeforeRequestHeaderSend	"<строка>"	Содержит IP-адрес сетевого устройства, через которое будет отправлен запрос. Пример: "192.186.0.2"
+request_header	чтение, запись	BeforeViewInMonitor (только чтение), BeforeAuthorization (только чтение), RequestHeaderReceived, BeforeRequestHeaderSend	В соответствие с RFC 2616	Содержит заголовок запроса. Если расширение изменит значение этой переменной, измененный заголовок будет отправлен серверу.
+request_body
+чтение, запись
+BeforeRequestHeaderSend, BeforeRequestBodySend
+"<строка>"
+Пример расширения для обработки тела запроса:
+ 
+--[[ <HCExtension>
+@name ReqBody
+@author mai
+@version 0.2
+@description Example
+@min_HC_version 1.0.0.310
+@rule mmm\.ru/form/
+@event BeforeRequestHeaderSend/header
+@event BeforeRequestBodySend/body
+</HCExtension> ]]
+ 
+function header()
+  if hc.method == 'POST' then
+    local s1= re.find(hc.request_header, [[[^\r]*\r\n]], 0)
+    local s2= re.replace(hc.request_header, [[[^\r]*\r\n]], '')
+    hc.request_header = s1
+    hc_static['req_header']= s2
+  end
+end
+ 
+function body()
+  if not hc_static['req_body'] then hc_static['req_body']= '' end
+  hc_static['req_body']= hc_static['req_body']..hc.request_body
+  hc.request_body= ''
+  if hc.last_part then
+    -- Здесь выполняются необходимые действия над телом запроса
+    -- Затем корректируется заголовок запроса, например, заменяется
+    -- длина тела запроса
+    hc.request_body= hc_static['req_header']..hc_static['req_body']
+    hc_static['req_header']= nil
+    hc_static['req_body']= nil
+  end
+end
+
+В обработчике BeforeRequestHeaderSend header() первая строка заголовка запроса отсылается на сервер а остальные строки заголовка запоминаются в таблице hc_static. В обработчике BeforeRequestBodySend body() расширение получает порции тела запроса из переменной hc.request_body и сохраняет их в таблице hc_static. Когда переменной hc.last_part будет присвоено значение true, расширение должно исправить тело и заголовок запроса в соответствии с замыслом автора расширения и отослать их на сервер.
+cache_file_name	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, AnswerHeaderReceived	"<строка>"	Имя файла в кэше, соответсвующего текущему запросу (пустая строка, если файла нет).
+cache_file_size	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, AnswerHeaderReceived	<число>	Размер файла в кэше (-1, если файла нет) за вычетом служебной информации, расположенной в конце файла.
+cache_file_age	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, AnswerHeaderReceived	<число>	Возраст (интервал времени между моментом последнего обновления файла и текущим моментом) файла в кэше в секундах (0, если файла нет).
+cache_file_content_type	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, AnswerHeaderReceived	"<строка>"	Тип содержимого файла в кэше (пустая строка, если файла нет в кэше или если не удалось определить его тип).
+cache_file_date_now	запись	RequestHeaderReceived, BeforeRequestHeaderSend, AnswerHeaderReceived	true	При присвоении этой переменной значения true дате модификации файла в кэше присваивается текущая дата.
+user_name	чтение	URLToFileNameConverting, BeforeViewInMonitor, RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	"<строка>"	Имя пользователя, от которого поступил запрос.
+user_ip	чтение	URLToFileNameConverting, BeforeViewInMonitor,
+BeforeAuthorization,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	"<строка>"	IP комрпьютера, с которого поступил запрос пользователя.
+user_from_internet	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	<число>	Количество данных, полученных пользователем из интернета за текущие сутки.
+user_from_cache	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	<число>	Количество данных, полученных пользователем из кэша за текущие сутки.
+user_to_internet	чтение	RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	<число>	Количество данных, отправленных пользователем за текущие сутки.
+answer_header	чтение, запись	RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	В соответствие с RFC 2616	Заголовок ответа, полученный от сервера или сформированный расширением. Если этой переменной расширение присвоило новое значение, то клиенту будет передан измененный заголовок.
+В кэш при ответе 302 записывается заголовок, полученный от сервера. Заголовок, сформированный расширением, в кэш не записывается.
+answer_body	чтение, запись	
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend
+
+"<строка>",
+"file=<имя файла>",
+"file=URLToCache(<URL>)"	
+При обработке событий RequestHeaderReceived, AnswerHeaderReceived, BeforeAnswerHeaderSend содержит тело ответа, сформированное расширением. Если этой переменной присвоено значение, то клиенту будет передано содержимое этой переменной в качестве тела ответа.
+В кэш записывается тело ответа, полученное от сервера. Тело ответа, сформированный расширением, в кэш не записывается.
+Этой переменной вместо непосредственно тела ответа может быть присвоено также имя файла, который будет использован в качестве тела ответа ("file=c:\abc\qwerty.html"), или URL ("file=URLToCache(http://site.ru/abc.gif)"). В последнем случае в качестве тела ответа будет использован файл в кэше, соответствующий указанному URL.
+
+При обработке события BeforeAnswerBodySend через эту переменную расширение получает очередную порцию данных для обработки. В эту же переменную расширение записывает результат обработки.
+
+last_part	чтение	BeforeAnswerBodySend	true, false	Принимает значение true, когда расширение вызывается последний раз для обработки текущего запроса.
+action	чтение, запись	BeforeAuthorization,
+RequestHeaderReceived, BeforeRequestHeaderSend, AnswerHeaderReceived	Для BeforeAuthorization:
+если присвоить имя пользователя из списка пользователей (пользователь должен быть разрешен), то запрос будет обработан
+Для RequestHeaderReceived и BeforeRequestHeaderSend:
+можно использовать все допустимые значения
+Для AnswerHeaderReceived:
+"stop",
+"dont_update",
+"save",
+"dont_save"	Действие, которое должен выполнить НС:
+"stop" - заблокировать загрузку;
+"dont_update" - не обновлять файл (отдать из кэша).
+"only_from_cache" - если файл есть в кэше, то отдать его клиенту, иначе заблокировать загрузку.
+"save" - записать файл в кэш;
+"dont_save" - не записывать файл в кэш, даже если сработал список Запись в кэш.
+Если поставить знак "-" в конце названия действия, то данное действие будет применено только в случае активности соответствующего списка для данного запроса. Например: действие "stop-" заблокирует загрузку, только если Черный список не был отключен галкой Разрешить, горячей клавишей или Белым списком.
+extensions_on	чтение, запись	RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	true, false	Если присвоить этой переменной значение false, то для текущего запроса все последующие обработчики событий вызываться уже не будут.
+read_from_cache_on	чтение, запись	RequestHeaderReceived	true, false	Присвоение false запрещает чтение из кэша для текущего запроса.
+add_ims_on	чтение, запись	RequestHeaderReceived	true, false	Присвоение значения этой переменной управляет опцией Добавить if-Modified-Since при наличии файла в кэше для текущего запроса.
+offline_disable	запись	RequestHeaderReceived	true, false	Присвоение этой переменной true запрещает автономный режим для текущего запроса.
+ramcache_disable	запись	RequestHeaderReceived	true, false	Присвоение этой переменной true запрещает использование RAM-кэш для текущего запроса.
+disable_stop_ssl_decryption	запись	RequestHeaderReceived	true, false	Присвоение этой переменной true запрещает автоматическое отключение Обработки SSL для текущего запроса.
+white_mask	чтение, запись	BeforeViewInMonitor, RequestHeaderReceived	"<строка>"	Маска Белого списка - в эту переменную можно добавить по одному символу для каждого из списков, если нужно, чтобы этот список не работал с данным запросом. Для обозначения списков можно использовать символы:
+W или Б - Белый список
+B или Ч - Черный список
+S или З - список Запись в кэш
+D или Н - список Не обновлять
+O или Т - список Только из кэша
+R или А - список Переадресация
+U или П - список Преобразование URL
+Символы могут быть строчные или заглавные. Например, для выключения Черного списка, списка Только из кэша и списка Преобразование URL значение переменной может быть такое: hc.white_mask="ЧТu". Запрет начинает действовать немедленно после присвоения значенияпеременной.
+file_speed_limit	чтение, запись	RequestHeaderReceived, AnswerHeaderReceived	<число>	Если этой переменной присвоить значение больше 0, то это значение будет использоваться как лимит скорости (в байтах в секунду) для загрузки данного файла. Присвоение переменной значения 0 снимает ограничение.
+user_speed_limit	чтение, запись	RequestHeaderReceived, AnswerHeaderReceived	<число>	Если этой переменной присвоить значение больше 0, то это значение будет использоваться как лимит скорости (в байтах в секунду) для данного пользователя до задания другого значения или перезапуска HandyCache. hc.user_speed_limit=0 снимает ограничения скорости для данного пользователя.
+freezed_disconnection_time	чтение, запись	RequestHeaderReceived, AnswerHeaderReceived	<число>	Если этой переменной присвоить значение больше 0, то это значение будет использоваться как интервал до разрыва застывшего соединения (в секундах) для данного соединения.
+dont_load_large_files_on	чтение	
+Init, Options, Timer1s, Timer1m, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend
+
+true, false	Принимает текущее состояние опции Не загружать большие файлы.
+speed_limit_on	чтение	
+Init, Options, Timer1s, Timer1m, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend
+
+true, false	Принимает текущее состояние опции Ограничить скорость загрузки.
+offline_on	чтение	
+Init, Options, Timer1s, Timer1m, BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend
+
+true, false	Принимает текущее состояние опции Автономный режим.
+monitor_index	чтение	BeforeViewInMonitor,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	<число>	Принимает значение номера строки в мониторе, соответствующей текущему запросу.
+hide_in_active_list	чтение, запись	BeforeViewInMonitor	true, false	Если этой переменной присвоено значение true, то строка в в списке активных запросов, соответсвующая текущему запросу будет спрятана.
+hide_in_monitor	чтение, запись	BeforeViewInMonitor, RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	true, false	Если этой переменной присвоено значение true, то строка в мониторе, соответсвующая текущему запросу будет спрятана.
+monitor_text_color	чтение, запись	BeforeViewInMonitor,
+BeforeAuthorization,
+RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend	<число>	Задает цвет текста в строке монитора. Если уровни основных цветовых составляющих R, G и B, то цвет задается числом R+G*256+B*256*256. R, G и B могут принимать значения от 0 до 255.
+monitor_parent_url	чтение, запись (только в обработчике BeforeViewInMonitor)	BeforeViewInMonitor, RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	"<строка>"	Задает URL строки монитора, которая будет 'родительской' для строки текущего запроса. Если переменной значение не было присвоено, то при чтении этой переменной выдается значение поля Referer заголовка запроса.
+monitor_string	чтение, запись	URLToFileNameConverting,
+BeforeAuthorization,
+BeforeViewInMonitor, RequestHeaderReceived, BeforeRequestHeaderSend, BeforeRequestBodySend, AnswerHeaderReceived, BeforeAnswerHeaderSend, BeforeAnswerBodySend	"<строка>"	Содержит значение, присвоенное предыдущими расширениями при обработке текущего события. Расширение может присвоить свое значение этой переменной. Значение этой переменной будет выведено в колонке Правила в Мониторе в строке текущего запроса.
+Если навести указатель мыши на сообщение в колонке Правило, будет выведен хинт, который может содержать дополнительную информацию. Ту часть сообщения, которая предназначена для вывода в хинт, нужно обрамлять с двух сторон последовательностями символов #~#. Например, так hc.monitor_string = hc.monitor_string .. 'Message' .. ' #~#This is a hint#~#,'
+Функции таблицы hc
+Имя
+
+Описание
+
+shell_execute	
+Функция является оберткой Windows API функции ShellExecute (аргумент Operation="Open"). Подробнее смотрите здесь.
+
+Аргументы функции:
+File - имя открываемого файла;
+Parameters - строка параматров, которая будет послана открываемому приложению;
+Directory - стандартный каталог (default directory), передаваемый приложению.
+ShowCmd - флаг, задающий состояние окна приложения при открытии, может принимать значения 'SW_HIDE', 'SW_MAXIMIZE', 'SW_MINIMIZE', 'SW_RESTORE', 'SW_SHOW', 'SW_SHOWDEFAULT','SW_SHOWMAXIMIZED', 'SW_SHOWMINIMIZED', 'SW_SHOWMINNOACTIVE', 'SW_SHOWNA', 'SW_SHOWNOACTIVATE', 'SW_SHOWNORMAL'.
+Wait - принимает значение true или false; если присвоено значение true, то функция будет ожидать выполнения запущенной операции, в противном случае ожидания не будет.
+
+Возвращаемое значение: Возвращает строку 'OK' при успешном вызове функции. В случае ошибки, возвращает сообщение об ошибке.
+
+Пример использования: hc.shell_execute('notepad.exe', 'stat.txt', nil, 'SW_SHOW')
+
+execute_and_wait	
+Функция запускает на выполнение программу и дожидается ее завершения.
+
+Аргументы функции:
+Cmd - имя программы; если нужно через пробел можно добавить аргументы для вызываемой программы.
+
+Возвращаемое значение: Код завершения запускаемой программы.
+
+Пример использования: hc.execute_and_wait('notepad.exe stat.txt')
+
+play_sound	
+Функция является оберткой Windows API функции PlaySound. Подробнее смотрите здесь.
+
+Аргументы функции:
+Sound - имя wav-файла или системного события ('SystemAsterisk', 'SystemDefault', 'SystemExclamation', 'SystemExit', 'SystemHand', 'SystemQuestion', 'SystemStart', 'SystemWelcome').
+
+Возвращаемое значение: нет.
+
+Примеры использования:
+hc.play_sound('blocked.wav')
+hc.play_sound('SystemExclamation')
+
+crc32	
+Функция выполняет подсчет хэша crc32 для входной строки.
+
+Аргументы функции:
+Str - входная строка.
+
+Возвращаемое значение: Crc32 хэш-код входной строки (число).
+
+Пример использования: crc = hc.crc32(str_line)
+
+compress	
+Функция выполняет упаковку строки, используя алгоритм gzip.
+
+Аргументы функции:
+Str - входная строка.
+
+Возвращаемое значение: Упакованная строка.
+
+Пример использования: gzip = hc.compress(str_line)
+
+uncompress	
+Функция выполняет распаковку строки, используя алгоритм gzip.
+
+Аргументы функции:
+Str - входная строка.
+
+Возвращаемое значение: Распакованная строка.
+
+Пример использования: out = hc.uncompress(str_line)
+
+encode_base64	
+Функция выполняет кодирование строки в формате base64.
+
+Аргументы функции:
+Str - входная строка.
+
+Возвращаемое значение: Результат кодирования строки.
+
+Пример использования: crc = hc.encode_base64(str_line)
+
+decode_base64	
+Функция выполняет декодирование строки, кодированной в формате base64.
+
+Аргументы функции:
+Str - входная строка.
+
+Возвращаемое значение: Результат декодирования строки.
+
+Пример использования: crc = hc.decode_base64(str_line)
+
+recode	
+Функция выполняет преобразование одной кодировки строки в другую.
+
+Аргументы функции:
+Str -  строка для преобразования;
+InCP -   кодировка входной строки;
+OutCP -  кодировка выходной строки;
+Flags - флаги, управляющие преобразованием; если этот аргумент пропущен, то используется значение 0;
+Значения некоторых флагов:
+WC_COMPOSITECHECK = 512
+WC_DISCARDNS = 16
+WC_SEPCHARS = 32
+WC_DEFAULTCHAR = 64
+Назначение флагов можно посмотреть в описании функции WideCharToMultiByte, например, здесь.
+DefaultChar - символ, который будет помещен в строку, если в указанной кодировке символ не может быть представлен; если аргумент пропущен, то выводится символ '?'.
+Номера некоторых часто встречающихся кодовых страниц:
+utf8 - 65001
+Cyrillic (DOS) - 866
+Cyrillic (iso-8859-5) - 28595
+Cyrillic (KOI8-R) - 20866
+Cyrillic (windows-1251) - 1251
+Номера других кодовых страниц можно посмотреть, например, здесь.
+Вместе с кодировками входной и выходной строк можно использовать модификаторы. Применение модификатора 100000 приводит к использованию дополнительного кодирования строки в виде %XXX (см. примеры). Модификатор 200000 инициирует использование puny-кода.
+
+Возвращаемое значение: Первым значением возвращается выходная строка в заданной кодировке. Вторым значением является true или false в зависимости от того потебовалось использовать символ DefaultChar или нет.
+
+Примеры использования:
+local new_str= hc.recode(str, 20866, 1251)
+local x_str= hc.recode('привет', 1251, 1251+100000)  -- x_str будет присвоено ''%EF%F0%E8%E2%E5%F2'
+local w_str= hc.recode('%EF%F0%E8%E2%E5%F2', 1251+100000, 1251)  -- w_str будет присвоено 'привет'
+local utf8_str= hc.recode('привет', 1251, 65001+100000)  -- utf8_str будет присвоено '%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82'
+local ww_str= hc.recode('%D0%BF%D1%80%D0%B8%D0%B2%D0%B5%D1%82', 65001+100000, 1251)  -- ww_str будет присвоено 'привет'
+local puny_str= hc.recode('привет', 1251, 1251+200000)  -- puny_str будет присвоено 'b1agh1afp'
+local win_str= hc.recode('b1agh1afp', 1251+200000, 1251)  -- win_str будет присвоено 'привет'
+
+local WC_COMPOSITECHECK = 512 --convert composite to precomposed
+local WC_DEFAULTCHAR = 64 --replace w default char
+local s,b = hc.recode('абвгд 12345 abcde', 1251, 28591, WC_COMPOSITECHECK+WC_DEFAULTCHAR, '#') --s будет присвоено '##### 12345 abcde', а b - true
+
+execute_cmd	
+Функция выполняет команду (те же команды, что и для утилиты HCCmd).
+
+Аргументы функции:
+Cmd - команда.
+
+Список команд.
+'AddToWhiteList URL' - добавить в Белый список
+'AddToBlackList URL' - добавить в Черный список
+'AddToSaveToCacheList URL' - добавить в список Запись в кэш
+'AddToDontUpdateList URL' - добавить в список Не обновлять
+'AddToOnlyFromCacheList URL' - добавить в список Только из кэша
+'ViewWindow' - показать главное окно
+'ViewWhiteList' - показать Белый список
+'ViewBlackList' - показать Черный список
+'ViewSaveToCacheList' - показать список Запись в кэш
+'ViewDontUpdateList' - показать список Не обновлять
+'ViewOnlyFromCacheList' - показать список Только из кэша
+'WhiteList on|off|switch' - управление Белым списком
+'BlackList on|off|switch' - управление Черным списком
+'SaveToCacheList on|off|switch' - управление списком Запись в кэш
+'DontUpdateList on|off|switch' - управление списком Не обновлять
+'OnlyFromCacheList on|off|switch' - управление списком Только из кэша
+'OffLine on|off|switch' - управление Автономным режимом
+'RedirectList on|off|switch' - управление списком Переадресация
+'FreshFiles on|off|switch' - управление опцией Не обновлять свежие файлы
+'ReadFromCache on|off|switch' - управление чтением из кэша
+'LoadURL' - загрузить URL в кэш
+'DeleteURL' - удалить URL из кэша
+'StopURL' - остановить загрузку URL
+'ClearCache' - запустить очистку кэша
+'Exit' - завершить выполнение программы
+'URLTransformingList on|off|switch' - управление списком Преобразование URL
+'DontLoadLargeFiles on|off|switch' - управление опцией Не загружать большие файлы
+'SpeedLimit on|off|switch' - управление опцией Ограничить скорость загрузки
+'MediatorServers on|off|switch' - управление списком серверов-посредников
+'DNSCache on|off|switch' - управление DNS-кэшем
+'ParentProxy on|off|switch' - управление внешними прокси
+'UnconditionalProxy on|off|switch' - управление безусловными прокси
+'ConditionalProxy on|off|switch' - управление условными прокси
+'Statistics on|off|switch' - управление ведением статистики
+'SelectCacheDirSet 1|2' - выбрать активный набор каталогов кэша
+'SetMainCacheDir1 DirPath' - задать основной каталог первого набора
+'SetMainCacheDir2 DirPath' - задать основной каталог второго набора
+'SetROCacheDir1 DirPath' - задать каталог кэша только для чтения первого набора
+'SetROCacheDir2 DirPath' - задать каталог кэша только для чтения второго набора
+'SelectParentProxy ProxyName' - задать текущий безусловный родительский прокси
+'ViewExtensionsList' - показать список расширений
+'EnableExtension ExtName' - разрешить работу расширения
+'DisableExtension ExtName' - запретить работу расширения
+'ReloadExtension ExtName' - перечитать расширение из файла
+
+Возвращаемое значение: нет.
+
+Примеры использования:
+hc.execute_cmd('BlackList on')
+hc.execute_cmd('ClearCache')
+
+send_request	
+Функция отправляет через HandyCache http-запрос. Этот запрос обрабатывается HandyCache таким же образом, как все другие запросы, проходящие через него (работают все опции, списки, расширения).
+
+Аргументы функции:
+header - заголовок http-запроса;
+body - тело http-запроса для метода POST.
+https_header - заголовок для формирования https-запроса к прокси-серверу.
+
+Возращаемое значение: нет.
+
+Пример использования:
+hdr = 'GET http://mail.ru HTTP/1.0\r\nConnection: close\r\n\r\n'
+hc.send_request(hdr)
+или
+hdr = 'GET http://mail.ru HTTP/1.0\r\n'..
+'Connection: close\r\n\r\n'
+https_hdr =  'CONNECT mail.ru:443 HTTP/1.1\r\n'..
+'Host: mail.ru\r\n'..
+'Connection: keep-alive\r\n\r\n'
+hc.send_request(hdr, '', https_hdr)
+
+sleep	
+Функция останавливает выполнение расширения на заданный интервал времени.
+
+Аргументы функции:
+t - интервал времени в миллисекундах.
+
+Возращаемое значение: нет.
+
+Пример использования: hc.sleep(1000)
+
+put_msg	
+Функция вызывает появление на экране информационного окошка с заданным сообщением.
+
+Аргументы функции:
+time - если первый аргумент является числом и количество аргументов больше одного, то первый аргумент интерпретируется как время нахождения сообщения на экране в секундах, может принимать значения от 1 до 20; сообщение будет находиться на экране до тех пор, пока не истечет время, заданное параметром time, или не будет вызвано на экран другое сообщение; если этот аргумент не задан, то сообщение будет находиться на экране 5 секунд;
+msg - сообщение.
+
+Возращаемое значение: нет.
+
+Пример использования: hc.put_msg(10, 'Очистка кэша запущена')
+
+put_to_log	
+Функция помещает заданное сообщение в лог программы.
+
+Аргументы функции:
+msg - сообщение; сообщение может состоять из нескольких частей, разделенных запятыми; каждая из частей может быть строкой или числом;
+
+Возращаемое значение: нет.
+
+Пример использования: hc.put_to_log('method='..hc.method)
+
+get_keyboard_state	
+Функция получает список нажатых клавиш.
+
+Аргументы функции: нет.
+
+Возвращаемое значение: Строка со списком нажатых клавиш.
+Перечень имен клавиш:
+'VK_LBUTTON', 'VK_RBUTTON', 'VK_CANCEL', 'VK_MBUTTON', 'VK_XBUTTON1', 'VK_XBUTTON2','VK_BACK', 'VK_TAB', 'VK_CLEAR', 'VK_RETURN', 'VK_SHIFT', 'VK_CONTROL', 'VK_MENU','VK_PAUSE', 'VK_CAPITAL', 'VK_KANA', 'VK_JUNJA', 'VK_FINAL', 'VK_HANJA', 'VK_KANJI','VK_ESCAPE', 'VK_CONVERT', 'VK_NONCONVERT', 'VK_ACCEPT', 'VK_MODECHANGE', 'VK_SPACE','VK_PRIOR', 'VK_NEXT', 'VK_END', 'VK_HOME', 'VK_LEFT', 'VK_UP', 'VK_RIGHT', 'VK_DOWN','VK_SELECT', 'VK_PRINT', 'VK_EXECUTE', 'VK_SNAPSHOT', 'VK_INSERT', 'VK_DELETE','VK_HELP', 'VK_0', 'VK_1', 'VK_2', 'VK_3', 'VK_4', 'VK_5', 'VK_6', 'VK_7', 'VK_8', 'VK_9','VK_A', 'VK_B', 'VK_C', 'VK_D', 'VK_E', 'VK_F', 'VK_G', 'VK_H', 'VK_I', 'VK_J','VK_K', 'VK_L', 'VK_M', 'VK_N', 'VK_O', 'VK_P', 'VK_Q', 'VK_R', 'VK_S', 'VK_T','VK_U', 'VK_V', 'VK_W', 'VK_X', 'VK_Y', 'VK_Z', 'VK_LWIN', 'VK_RWIN', 'VK_APPS','VK_SLEEP', 'VK_NUMPAD0', 'VK_NUMPAD1', 'VK_NUMPAD2', 'VK_NUMPAD3', 'VK_NUMPAD4','VK_NUMPAD5', 'VK_NUMPAD6', 'VK_NUMPAD7', 'VK_NUMPAD8', 'VK_NUMPAD9', 'VK_MULTIPLY', 'VK_ADD', 'VK_SEPARATOR', 'VK_SUBTRACT', 'VK_DECIMAL', 'VK_DIVIDE', 'VK_F1', 'VK_F2','VK_F3', 'VK_F4', 'VK_F5', 'VK_F6', 'VK_F7', 'VK_F8', 'VK_F9', 'VK_F10', 'VK_F11','VK_F12', 'VK_F13', 'VK_F14', 'VK_F15', 'VK_F16', 'VK_F17', 'VK_F18', 'VK_F19','VK_F20', 'VK_F21', 'VK_F22', 'VK_F23', 'VK_F24', 'VK_NUMLOCK', 'VK_SCROLL','VK_LSHIFT', 'VK_RSHIFT', 'VK_LCONTROL', 'VK_RCONTROL', 'VK_LMENU', 'VK_RMENU','VK_BROWSER_BACK', 'VK_BROWSER_FORWARD', 'VK_BROWSER_REFRESH', 'VK_BROWSER_STOP','VK_BROWSER_SEARCH', 'VK_BROWSER_FAVORITES', 'VK_BROWSER_HOME', 'VK_VOLUME_MUTE','VK_VOLUME_DOWN', 'VK_VOLUME_UP', 'VK_MEDIA_NEXT_TRACK', 'VK_MEDIA_PREV_TRACK','VK_MEDIA_STOP', 'VK_MEDIA_PLAY_PAUSE', 'VK_LAUNCH_MAIL', 'VK_LAUNCH_MEDIA_SELECT','VK_LAUNCH_APP1', 'VK_LAUNCH_APP2', 'VK_OEM_1', 'VK_OEM_PLUS', 'VK_OEM_COMMA','VK_OEM_MINUS', 'VK_OEM_PERIOD', 'VK_OEM_2', 'VK_OEM_3', 'VK_OEM_4', 'VK_OEM_5','VK_OEM_6', 'VK_OEM_7', 'VK_OEM_8', 'VK_OEM_102', 'VK_PROCESSKEY', 'VK_PACKET', 'VK_ATTN', 'VK_CRSEL', 'VK_EXSEL', 'VK_EREOF', 'VK_PLAY', 'VK_ZOOM', 'VK_NONAME','VK_PA1', 'VK_OEM_CLEAR'
+
+Пример использования:
+_,_,x = string.find(hc.get_keyboard_state(), 'VK_F11')
+if x~=nil then ... end
+
+systime_to_str	
+Функция преобразует системное время в строковое представление.
+
+Аргументы функции:
+time - время по Гринвичу в числовом представлении;
+gmt - формат представления времени, принимает значения true или false (по умолчанию true). Если передано значение true, то на выходе функции время будет по Гринвичу. Если передано значение false, то локальное время.
+
+Возвращаемое значение: Время в строковом представлении.
+
+Пример использования: s = hc.systime_to_str(os.time(), false)
+
+str_to_systime	
+Функция преобразует строковое представление времени в числовое.
+
+Аргументы функции:
+str - время в формате, применяемом в http-заголовках;
+gmt - формат представления времени в первом аргументе, принимает значения true или false (по умолчанию true). Если передано значение true, то в первом аргументе должно находиться строковое представление времени по Гринвичу. Если передано значение false, то в первом аргументе должно находиться строковое представление локального времени.
+
+Возращаемое значение: Время по Гринвичу в числовом представлении (время в секундах, прошедшее после 0 часов 0 минут 1 января 1970 года).
+
+Пример использования:
+t1=hc.str_to_systime('Tue, 25 Nov 2008 02:52:14 GMT')
+t2=os.time() -- Текущее время по Гринвичу в числовом представлении
+hc.put_to_log('C 25 ноября 2008 г. прошло '..(t2-t1)/3600/24..' дней')
+
+get_host_IP	
+Функция получает IP-адрес для заданного имени сетевого узла.
+
+Аргументы функции:
+host - имя сетевого узла;
+cache - разрешение использования кэша DNS, принимает значения true или false; если этот аргумент опущен, то использование кэша разрешено.
+timeout - время, отведенное на выполнение функции;
+
+Возвращаемое значение: Первым значением возвращается IP-адрес в виде строки; если IP-адрес не найден, то первое значение равно nil; вторым значением функция возвращает строку - сообщение; в случае удачи сообщается был ли найден адрес в кэше; в случае неудачи - причина. Если истекло время на выполнение функции, функция возвращает значение -1.
+
+Пример использования: ip,e=hc.get_host_IP('handycache.ru')
+
+ssl_handling_enabled	
+Функция сообщает разрешена обработка SSL или нет.
+
+Аргументы функции:
+url - запрашиваемый URL;
+name - имя пользователя, от которого поступил запрос.
+
+Возвращаемое значение: Если функция вызвана без аргументов, то она возвращает состояние опции Обработка SSL. Если значения аргументов заданы, то функция сообщает разрешена ли обработка SSL для данного URL и пользователя.
+
+Пример использования: en=hc.ssl_handling_enabled('https://mail.ru', 'Boss')
+
+enable_user	
+Функция позволяет разрешить или запретить пользователю доступ к HandyCache.
+
+Аргументы функции:
+name - имя пользователя;
+enable - разрешение пользователю с именем name доступа к HandyCache, принимает значения true или false; если этот аргумент пропущен, то эта функция не изменяет возможность доступа пользователя.
+
+Возвращаемое значение: true, если пользователю разрешен доступ, и - false, если доступ запрещен;
+
+Пример использования: hc.enable_user('Boss', true)
+
+get_users_stat	
+Функция позволяет получить информацию о пользователях.
+
+Аргументы функции:
+type - аргумент функции, от значения которого зависит характер возвращаемой инфлрмации; если этому аргументу присвоить значение '#all', то функция вернет таблицу, содержащую информацию о всех пользователях; если этому аргументу присвоить значение '#active', то функция вернет таблицу, содержащую информацию об активных пользователях (активными считаются пользователи, имеющие на данный момент хотя бы одно активное соединение с HandyCache); если этому аргументу присвоить имя пользователя, то функция вернет таблицу, содержащую информацию о заданном пользователе;  если пользователя с заданным именем нет, то функция вернет nil;
+
+Возвращаемое значение: Таблица с информацией о пользователях; каждый элемент возвращаемой таблицы имеет следующие поля: 'from_internet', 'from_cache', 'to_internet', 'connections_number', 'speed_limit ';
+
+Пример использования:
+local t= hc.get_users_stat('Иванов')
+if t then cn=t['Иванов'].connections_number end
+
+set_user_speed	
+Функция позволяет задать ограничение скорости загрузки для пользователя.
+
+Аргументы функции:
+name - имя пользователя;
+speed - лимит скорости для пользователя с именем name в байтах в секунду; если этот аргумент равен нулю, то скорость загрузки не ограничена; если этот аргумент пропущен или он равен nil , то эта функция не изменяет лимит скорости загрузки пользователя.
+
+Возвращаемое значение: лимит скорости загрузки пользователя; если скорость загрузки пользователя не ограничена, то возвращается ноль; если пользователь с именем name не найден, то возвращается nil;
+
+Пример использования: hc.set_user_speed('Boss', 0)
+
+prepare_path	
+Функция создает каталоги в соответсвии с путем, заданным аргументом.
+
+Аргументы функции:
+path - путь к папке;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.prepare_path('c:\\program files\\handycache\\cache\\example\\')
+
+get_dir_files_list	
+Функция позволяет получить список файлов у указанном каталоге.
+
+Аргументы функции:
+dir - путь к каталогу, для которого нужно получить список файлов
+
+Возвращаемое значение: Таблица со списком файлов, индекс таблицы от 0.
+
+Пример использования:
+local t= hc.get_dir_files_list('d:\\tmp\\')
+local i
+for i=0, #t do
+  hc.put_to_log(t[i])
+end
+
+repeat_options	
+Функция задает опции, управляющие процессом получения данных от удаленного сервера.
+
+Аргументы функции:
+type - строка, может принимать значение 'connect', 'request' или 'no_answer'.
+time - если первому аргументу присвоено значение 'connect', то второй аргумент задает время на повторные соединения при ошибке в секундах; если первому аргументу присвоено значение 'request', то второй аргумент задает время на повторные запросы при ошибке в секундах; если первому аргументу присвоено значение 'no_answer', то второй аргумент задает время на повторные запросы без ответа в секундах; если втрому аргументу присвоен nil, то действует время, установленное в настройках на вкладке Управление загрузкой;
+pause - если первому аргументу присвоено значение 'connect' , то третий аргумент задает паузу между попытками повторных соединений при ошибке в секундах; если первому аргументу присвоено значение 'request', то третий аргумент задает паузу между повторными попытками запросов при ошибке в секундах; если первому аргументу присвоено значение 'no_answer', то третий аргумент задает паузу между повторными попытками запросов без ответа в секундах; если третьему аргументу присвоен nil, то действует пауза, установленная в настройках на вкладке Управление загрузкой;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.repeat_options('connect', 30, 3)
+
+call_me_for	
+Функция регистрирует функцию текущего расширения в качестве обработчика события для текущего запроса.
+
+Аргументы функции:
+event - наименование события;
+function - имя функции текущего расширения;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.call_me_for('BeforeAnswerBodySend', 'body')
+
+client_disconnect	
+Разрывает заданное соединение с клиентом.
+
+Аргументы функции:
+ind - номер соединения. Если аргумент не задан, то разрывается соединение, в котором работает расширение.
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.client_disconnect(123)
+
+server_disconnect	
+Разрывает соединение с сервером.
+
+Аргументы функции: Нет.
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.server_disconnect()
+
+user_disconnect	
+Функция разрывает все установленные на данный момент соединения заданного пользователя.
+
+Аргументы функции:
+name - имя пользователя;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.user_disconnect('Иванов')
+
+prepare_url	
+Функция выполняет преобразование заданного URL в имя файла в кэше без вызова обработчика события URLToFileNameConverting.
+
+Аргументы функции:
+url - ссылка на сетевой ресурс;
+URLTransformingList - разрешение использования списка Преобразование URL при исполнении функции, принимает значения true или false (по умолчанию true ).
+DecodePunyCode - управление декодированием puny-кода в URL, принимает значения true или false. Если этот аргумент не задан, то декодирование зависит от состояния опции Декодировать puny-код в URL.
+DecodeLocaleURL - управление декодированием URL на язык локали, принимает значения true или false. Если этот аргумент не задан, то декодирование зависит от состояния опции Декодировать URL на язык локали Windows.
+
+Возвращаемое значение: Имя файла в кэше, полученное из заданного URL с помощью встроенного алгоритма преобразования;
+
+Пример использования: local s= hc.prepare_url(hc.url)
+
+preform_cache_file_name	
+Функция задает имя файла в кэше, которое может быть сформировано расширением в обработчике события URLToFileNameConverting. HandyCache, если потребуется, может изменить заданное имя файла для его адаптации к текущему состоянию кэша. Путь к файлу может быть задан абсолютным (начинается с имени диска) или относительным. Во втором случае в начало имени добавляется путь к папке кэша.
+
+Замечание. По умолчанию HandyCache не использует файлы вне папки кэша. Чтобы разрешить использование файлов вне папки кэша, нужно в файл HandyCache.ini в секции MainForm добавить строку ReadOnlyFromCachePath=False
+
+Аргументы функции:
+path - путь к файлу;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.preform_cache_file_name('site1.ru\example.jpg')
+
+get_cache_file_name	
+Функция получает имя файла в кэше и его наличие для заданного URL.
+
+Аргументы функции:
+url - ссылка на сетевой ресурс;
+
+Возвращаемое значение: Первым значением возвращается имя файла; вторым - наличие файла в кэше (true/false );
+
+Пример использования: s,e=hc.get_cache_file_name('http://handycache.ru/')
+
+get_cache_file_size	
+Функция получает размер файла в кэше.
+
+Аргументы функции:
+name - полное имя файла;
+
+Возвращаемое значение: Размер данных в файле за вычетом служебной информации, расположенной в конце файла; если файл не найден, возвращается значение -1.
+
+Пример использования: len=hc.get_cache_file_size('c:\cache\site.ru\img\qqq.jpg')
+
+get_cache_file_age	
+Функция получает возраст файла в кэше.
+
+Аргументы функции:
+name - полное имя файла;
+
+Возвращаемое значение: Время в секундах, прощедшее с момента последнего изменения файла;
+
+Пример использования: age=hc.get_cache_file_age('c:\cache\site.ru\img\qqq.jpg')
+
+get_cache_file_content_type	
+Функция получает тип данных и способ кодирования данных в файле в кэше.
+
+Аргументы функции:
+name - полное имя файла;
+
+Возвращаемое значение: Первым значением возвращается строка, содержащая тип данных в файле в формате поля Content-Type http-заголовков; вторым значением возвращается строка, содержащая способ кодирования данных в файле в формате поля Content-Encoding http-заголовков;
+
+Пример использования: type,encoding=hc.get_cache_file_content_type([[c:\cache\site.ru\img\qqq.jpg]])
+
+delete_cache_file	
+Функция удаляет файл в кэше, соответствующий заданному URL.
+
+Аргументы функции:
+url - ссылка на сетевой ресурс;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.delete_cache_file([[http://site.ru/example.gif]])
+
+delete_file	
+Функция удаляет файл или каталог вместе с файлами, находящимися в указанном каталоге. В имени файла можно задавать маску с использованием символов '?' и '*'.
+
+Аргументы функции:
+name - путь к файлу или каталогу;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.delete_file([[c:\cache\site.ru\*.gif]])
+
+file_last_modified_time	
+Функция получает время последнего изменения файла.
+
+Аргументы функции:
+name - полное имя файла;
+gmt - формат представления времени, принимает значения true или false (по умолчанию false.) Если передано значение true, то на выходе функции время будет по Гринвичу. Если передано значение false, то на выходе функции будет локальное время.
+
+Возвращаемое значение: время последнего изменения файла в числовом представлении.
+
+Пример использования:
+local tm=hc.file_last_modified_time([[c:\autoexec.bat]])
+hc.put_to_log(hc.systime_to_str(tm))
+
+update_url_info	
+Функция удаляет информацию о заданном файле из RAM-кэша и очищает внутренние переменные HandyCache, хранящие информацию об этом файле. Если информация о файле понадобится, она будет добываться из дискового кэша заново.
+
+Аргументы функции:
+url - ссылка на сетевой ресурс;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.update_url_info('http://handycache.ru/')
+
+set_global	
+Функция позволяет сохранить в памяти значение глобальной переменной. Сразу после завершения работы этой функции присвоенное значение будет доступно из других потоков.
+
+Аргументы функции:
+name - имя переменной, которой нужно присвоить значение value (если такой переменной нет, она будет создана);
+value - значение, которое нужно присвоить глобальной переменной (тип значения - любой доступный в lua кроме функции); если этот аргумент пропущен или nil, то переменная с именем name будет удалена из памяти;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.set_global('MyVar', 'Value')
+
+get_global	
+Функция позволяет получить значение глобальной переменной.
+
+Аргументы функции:
+name - имя переменной, значение которой нужно получить;
+
+Возвращаемое значение: Значение переменной name. Если переменной с заданным именем нет, то возвращается nil.
+
+Пример использования:
+local t1={}
+t1[1]=1
+t1['item1']='first item'
+local t2={}
+t2[1]=11
+t2[2]=22
+t2[3]=t1
+hc.set_global('var1', t2)
+local t=hc.get_global('var1')
+hc.put_to_log(t[3]['item1'])
+
+exists_global	
+Функция позволяет выяснить имеется ли в памяти глобальная переменная.
+
+Аргументы функции:
+name - имя переменной, наличие в памяти которой нужно получить;
+
+Возвращаемое значение: Если переменная с заданным именем существует, то возвращается true, в противном случае - nil.
+
+Пример использования: if hc.exists_global('var1') then a=hc.get_global('var1') end
+
+remove_global	
+Функция позволяет удалить глобальную переменную.
+
+Аргументы функции:
+name - имя переменной, которую надо удалить;
+
+Возвращаемое значение: Нет.
+
+Пример использования: if hc.exists_global('var1') then a=hc.remove_global('var1') end
+
+set_global_table_item	
+Функция позволяет сохранить значение в глобальной таблице. Сразу после завершения работы этой функции присвоенное значение будет доступно из других потоков.
+
+Аргументы функции:
+table_name - имя глобальной таблицы (если такой таблицы нет, она будет создана); если table_name - единственный аргумент функции, то таблица с этим именем будет удалена;
+index_list - список индексов элемента глобальной таблицы (если такого элемента таблицы нет, то он будет создан); список может быть произвольной длины, значения списка индексов могут принимать цифровые или строковые значения; например, если в списке два значения, то это означает, что в глобальную таблицу вложена другая таблица; первое значение списка индексов задает индекс в глобальной таблице, второй элемент списка индексов задает индекс элемента во вложенной таблице;
+value - значение, которое нужно присвоить элементу глобальной таблицы (тип значения - любой доступный в lua кроме функции); если этот аргумент пропущен или nil, то элемент таблицы с именем item_name будет удален из памяти;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.set_global_table_item('MyTable', 'Index1', 'Index2', 'Value')
+
+get_global_table_item	
+Функция позволяет получить значение элемента глобальной таблицы.
+
+Аргументы функции:
+table_name -  имя глобальной таблицы;
+index_list -  список индексов элемента глобальной таблицы; список может быть произвольной длины, значения списка индексов могут принимать цифровые или строковые значения; например, если в списке два значения, то это означает, что в глобальную таблицу вложена другая таблица; первое значение списка индексов задает индекс в глобальной таблице, второй элемент списка индексов задает индекс элемента во вложенной таблице;
+
+Возвращаемое значение: Значение  элемента глобальной таблицы item_name. Если элемента глобальной таблицы с заданным именем нет, то возвращается nil.
+
+Пример использования:
+local t1={}
+t1[1]=1
+t1['item1']='first item'
+local t2={}
+t2[1]=11
+t2[2]=22
+t2[3]=t1
+hc.set_global('var1', t2)
+local t= hc.get_global_table_item('var1',3)
+hc.put_to_log(t['item1'])
+
+exists_global_table_item	
+Функция позволяет выяснить имеется ли в памяти значение элемента глобальной таблицы.
+
+Аргументы функции:
+table_name -  имя глобальной таблицы;
+index_list -  список индексов элемента глобальной таблицы; список может быть произвольной длины, значения списка индексов могут принимать цифровые или строковые значения; например, если в списке два значения, то это означает, что в глобальную таблицу вложена другая таблица; первое значение списка индексов задает индекс в глобальной таблице, второй элемент списка индексов задает индекс элемента во вложенной таблице;
+
+Возвращаемое значение: Если значение элемента глобальной таблицы с заданным именем существует, то возвращается true, в противном случае - nil.
+
+Пример использования: if hc.exists_global_table_item('var1',3,'a') then a=hc.get_global_table_item('var1',3,'a') end
+
+remove_global_table_item	
+Функция позволяет удалить элемент глобальной таблицы.
+
+Аргументы функции:
+table_name -  имя глобальной таблицы;
+index_list -  список индексов элемента глобальной таблицы; список может быть произвольной длины, значения списка индексов могут принимать цифровые или строковые значения; например, если в списке два значения, то это означает, что в глобальную таблицу вложена другая таблица; первое значение списка индексов задает индекс в глобальной таблице, второй элемент списка индексов задает индекс элемента во вложенной таблице;
+
+Возвращаемое значение:  Нет .
+
+Пример использования: if hc.exists_global_table_item('var1',3,'a') then a=hc.remove_global_table_item('var1',3,'a') end
+
+window_pos	
+Функция получает положение и размер главного окна HandyCache.
+
+Аргументы функции: Нет.
+
+Возвращаемое значение: Первым значением возвращается горизонтальная координата верхнего левого угла окна; вторым - вертикальная координата верхнего левого угла окна; третьим - ширина окна; четвертым - высота окна;
+
+Пример использования: x,y,w,h=hc.window_pos()
+
+enable_extension	
+Функция позволяет разрешать или запрещать работу расширения с заданным именем.
+
+Аргументы функции:
+name - имя расширения;
+enable - флаг, разрешающий или запрещающий работу расширения (true/false); если этот аргумент опущен, функция не меняет текущее состояние флага;
+
+Возвращаемое значение: Текущее состояние разрешения работы расширения (true/false.)
+
+Пример использования: hc.enable_extension('Cache cleaner', true)
+
+reload_extension	
+Функция заставляет HandyCache перечитать файл расширения с заданным именем с последущим вызовом обработчика события Init.
+
+Аргументы функции:
+name - имя расширения;
+
+Возвращаемое значение: Нет.
+
+Пример использования: hc.reload_extension('Cache cleaner')
+
+ 
+Для выполнения регулярных выражений в HandyCache и расширениях используется библиотека PCRE.
+
+PCRE License
+
+PCRE is a library of functions to support regular expressions whose syntax
+and semantics are as close as possible to those of the Perl 5 language.
+
+                       Written by Philip Hazel
+           Copyright (c) 1997-2009 University of Cambridge
+
+-----------------------------------------------------------------------------
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+    * Redistributions of source code must retain the above copyright notice,
+      this list of conditions and the following disclaimer.
+
+    * Redistributions in binary form must reproduce the above copyright
+      notice, this list of conditions and the following disclaimer in the
+      documentation and/or other materials provided with the distribution.
+
+    * Neither the name of the University of Cambridge nor the names of its
+      contributors may be used to endorse or promote products derived from
+      this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE
+ARE DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT OWNER OR CONTRIBUTORS BE
+LIABLE FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR
+CONSEQUENTIAL DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF
+SUBSTITUTE GOODS OR SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS
+INTERRUPTION) HOWEVER CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN
+CONTRACT, STRICT LIABILITY, OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE)
+ARISING IN ANY WAY OUT OF THE USE OF THIS SOFTWARE, EVEN IF ADVISED OF THE
+POSSIBILITY OF SUCH DAMAGE.
+Переменные таблицы re, доступные в расширениях
+Имя
+
+Допустимые действия	
+События
+
+Допустимые значения
+
+Описание
+
+engine	чтение, запись	Все события	1..20	
+Расширения могут использовать до двадцати движков, исполняющих регулярные выражения. Значение engine позволяет выбрать для использования один из этих движков. Как правило, для выполнения своей работы расширению достаточно одного движка. Если не присвоить значение этой переменной, то по умолчанию будет использоваться первый движок. Однако, если, например, в callout-функции требуется выполнить регулярное выражение, то использовать для этой цели первый движок уже нельзя, это вызовет нарушение работы первого движка после выхода из callout-функции. Для использования в callout-функции нужно использовать другой движок. В callout-функции следует перед выполнением регулярных выражений включить другой движок присвоив переменной engine значение отличное от единицы, а потом вернуть расширение к использованию первого движка.
+
+Прочитав значение этой переменной расширение может узнать номер текущего движка.
+
+info_options	Чтение	Все события	 	
+Получает опции, с которыми было скомпилировано, регулярное выражение.
+
+Опции, с которыми было скомпилировано, регулярное выражение. Значения опций представлены битовой маской:
+PCRE_CASELESS           0x00000001
+PCRE_MULTILINE          0x00000002
+PCRE_DOTALL             0x00000004
+PCRE_EXTENDED           0x00000008
+PCRE_ANCHORED           0x00000010
+PCRE_DOLLAR_ENDONLY     0x00000020
+PCRE_EXTRA              0x00000040
+PCRE_NOTBOL             0x00000080
+PCRE_NOTEOL             0x00000100
+PCRE_UNGREEDY           0x00000200
+PCRE_NOTEMPTY           0x00000400
+PCRE_UTF8               0x00000800
+PCRE_NO_AUTO_CAPTURE    0x00001000
+PCRE_NO_UTF8_CHECK      0x00002000
+PCRE_AUTO_CALLOUT       0x00004000
+PCRE_PARTIAL_SOFT       0x00008000
+PCRE_DFA_SHORTEST       0x00010000
+PCRE_DFA_RESTART        0x00020000
+PCRE_FIRSTLINE          0x00040000
+PCRE_DUPNAMES           0x00080000
+PCRE_NEWLINE_CR         0x00100000
+PCRE_NEWLINE_LF         0x00200000
+PCRE_NEWLINE_CRLF       0x00300000
+PCRE_NEWLINE_ANY        0x00400000
+PCRE_NEWLINE_ANYCRLF    0x00500000
+PCRE_BSR_ANYCRLF        0x00800000
+PCRE_BSR_UNICODE        0x01000000
+PCRE_JAVASCRIPT_COMPAT  0x02000000
+PCRE_NO_START_OPTIMIZE  0x04000000
+PCRE_PARTIAL_HARD       0x08000000
+PCRE_NOTEMPTY_ATSTART   0x10000000
+PCRE_UCP                0x20000000
+
+Пример использования: local opt= re.info_options
+
+info_maxlookbehind	Чтение	Все события	 	
+Выдает количество символов в самом длинном lookbehind assertion последнего регулярного выражения. Эта информация полезна при организации поиска по регулярному выражению в условиях неполноты (поступления по частям) анализируемой строки.
+
+Пример использования: local max_len= re.info_maxlookbehind
+
+info_jit	Чтение	Все события	 	
+Получает значение 1, если регулярное выражение было скомпилировано с опцией PCRE_STUDY_JIT_COMPILE и jit-компиляция завершилась успешно. Возвращает 0, если использовние jit по каким-то причинам оказалось невозможным.
+
+Пример использования: local jit= re.info_jit
+
+Функции таблицы re для работы с регулярными выражениями
+Имя
+
+Описание
+
+select_engine	
+Эта функция делает то же действие, что и присвоение значения переменной engine (функция оставлена для сохранения совместимости со старыми версия расширений). C помощью этой функции можно выбрать какой из имеющихся движков будет использоваться.
+
+Аргументы функции:
+num -  номер движка, может принимать значения от 1 до 20;
+
+Возвращаемое значение: Нет.
+
+Пример использования:
+re.select_engine(2)
+s=re.replace(hc.answer_header, [[(?-s)(Cache-Control:.*\r\n)]],nil)
+re.select_engine(1)
+
+set_regex	
+Задает регулярное выражение.
+
+Аргументы функции:
+regex - регулярное выражение;
+
+Возвращаемое значение: Нет.
+
+Пример использования: re.set_regex([[(.*\.).*]])
+
+set_subj	
+Задает строку, над которой буде исполняться регулярное выражение.
+
+Аргументы функции:
+subj - строка;
+
+Возвращаемое значение: Нет.
+
+Пример использования: re.set_subj(hc.answer_header)
+
+set_callout	
+Задает имя callout-функции.
+
+Аргументы функции:
+func - имя callout-функции;
+
+Возвращаемое значение: Нет.
+
+Пример использования: re.set_callout('callout_func')
+
+match	
+Вызывает исполнение регулярного выражения.
+
+Аргументы функции:
+subj - строка, над которой будет исполняться регулярное выражение; если на месте этого аргумента задан nil или этот аргумент опущен, то будет использоваться subj-строка, заданная предыдущей функцией.
+regex - регулярное выражение; если на месте этого аргумента задан nil или этот аргумент опущен, то будет использоваться регулярное выражение, заданное предыдущей функцией;
+offset - смещение позиции в subj-строке, с которой начнется исполнение регулярного выражения; если на месте этого аргумента задан nil или этот аргумент опущен, то исполнение регулярного выражения начнется с начала строки (1-й позиции);
+partial - флаг, разрешающий использовать частичное совпадение; может принимать значение 'soft' или 'hard'; для совместимости со старыми версиями может принимать значение true (равносильно значению 'soft' ); если на месте этого аргумента задан nil или этот аргумент опущен, то частичные совпадения не используются;
+
+Возвращаемое значение: Если в результате исполнения регулярного выражения найдена хотя бы одна подстрока, то первым значением функция возвращает таблицу; в таблице будет ровно столько элементов, сколько нужно для размещения значений для всех найденных подстрок (например, если номер последней найденной подстроки равен два, то в таблице будет три элемента с индексами 0, 1 и 2); в этой таблице для каждой подстроки находится по паре значений: begin_pos и end_pos; эти значения задают соответственно позиции в subj-строке для начала и конца каждой подстроки; если подстрока не была найдена, то для нее будут записаны значения begin_pos и end_pos равные -1;  если в результате исполнения регулярного выражения не найдено ни одной подстроки, то первому возвращаемому значению присваивается nil, а в качестве второго значения возвращается строка с описанием ошибки; в качестве третьего значения функции всегда выводится значение (*Mark).
+
+Пример использования:
+local t=re.match(s, regex)
+if t then hc.put_to_log('длина подстроки='..t[0].end_pos-t[0].begin_pos+1) end
+
+substr_count	
+Получает номер последней подстроки, найденной в результате последнего исполнения регулярного выражения.
+
+Аргументы функции: Нет.
+
+Возвращаемое значение: Номер последней найденной подстроки.
+
+Пример использования: local num= re.substr_count()
+
+substr	
+Получает подстроку с заданным номером, найденную в результате последнего исполнения регулярного выражения.
+
+Аргументы функции:
+num - номер подстроки (счет начинается с 0);
+
+Возвращаемое значение: Возвращается подстрока; если подстрока с заданным номером не найдена, то возвращается пустая строка;
+
+Пример использования: local s=re.substr(0)
+
+substr_length	
+Получает длину подстроки с заданным номером, найденной в результате последнего исполнения регулярного выражения.
+
+Аргументы функции:
+num - номер подстроки;
+
+Возвращаемое значение: Возвращается длина подстроки; если подстроки с заданным номером нет, то возвращается значение меньше единицы ;
+
+Пример использования: local l=re.substr_length(0)
+
+substr_offset	
+Получает смещение позиции начала подстроки с заданным номером в subj-строке, найденной в результате последнего исполнения регулярного выражения.
+
+Аргументы функции:
+num - номер подстроки;
+
+Возвращаемое значение: Возвращается смещение подстроки; если подстроки с заданным номером нет, то возвращается значение меньше единицы (символы в lua-строке нумеруются начиная с 1, поэтому значение меньше единицы можно использовать как признак того, что данная подстрока не была найдена);
+
+Пример использования: local offset=re.substr_offset(0)
+
+named_substr_index	
+Получает индекс именованной подстроки, найденной в результате последнего исполнения регулярного выражения.
+
+Аргументы функции:
+name - имя подстроки;
+
+Возвращаемое значение: Возвращается индекс подстроки с заданным именем; если подстроки с заданным именем нет, то возвращается -1;
+
+Пример использования:
+t= re.match(s, 'a(?<name>b)')
+i=re.named_substr_index('name')
+if i>0 then l= t[i].end_pos-t[i].begin_pos
+
+offsets_vector_size	
+Получает размер вектора (массива) результатов выполнения регулярного выражения.
+
+Аргументы функции: Нет.
+
+Возвращаемое значение: Возвращается размер массива результатов;
+
+Пример использования: local n=re.offsets_vector_size()
+
+offsets_vector	
+Получает элемент вектора (массива) результатов выполнения регулярного выражения.
+
+Аргументы функции:
+index - номер элемента массива;
+
+Возвращаемое значение: Возвращается элемент массива результатов, обычно это смещение от начала строки, с которой работает регулярное выражение; если элемента с заданным номером нет, то возвращается -1;
+
+Пример использования: local offset=re.offsets_vector(0)
+
+find	
+Получает значение заданной подстроки.
+
+Аргументы функции:
+subj - строка, над которой будет исполняться регулярное выражение; если на месте этого аргумента задан nil или этот аргумент опущен, то будет использоваться строка, заданная предыдущей функцией.
+regex - регулярное выражение; если на месте этого аргумента задан nil или этот аргумент опущен, то будет использоваться регулярное выражение, заданное предыдущей функцией;
+num -  номер искомой подстроки; если на месте этого аргумента задан nil или этот аргумент опущен, то ищется подстрока с номером 0;
+partial - флаг, разрешающий использовать частичное совпадение; может принимать значение 'soft' или 'hard'; для совместимости со старыми версиями может принимать значение true(равносильно значению 'soft'); если на месте этого аргумента задан nil или этот аргумент опущен, то частичные совпадения не используются;
+
+Возвращаемое значение: Если в результате исполнения регулярного выражения найдена подстрока с заданным номером, то первым значением функция возвращает эту подстроку; если не найдена заданная подстрока, то первому возвращаемому значению присваивается nil; если при исполнении регулярного выражения не было обнаружено ошибок, то вторым значением функции будет nil; если при исполнении регулярного выражения произошла ошибка, то в качестве второго значения возвращается строка с описанием ошибки; в качестве третьего значения функции выводится значение (*Mark).
+
+Пример использования: local s=re.find(hc.answer_header, [[^Content-Length: (.+)]], 1)
+
+replace	
+Заменяет в строке найденные подстроки заданным значением.
+
+Аргументы функции:
+subj - строка, над которой будет исполняться регулярное выражение и в которой будут заменяться найденные подстроки; если на месте этого аргумента задан nil или этот аргумент опущен, то будет использоваться subj-строка, заданная предыдущей функцией.
+regex - регулярное выражение; если на месте этого аргумента задан nil или этот аргумент опущен, то будет использоваться регулярное выражение, заданное вызовом предыдущей функцией;
+repl  - строка, которой будут заменяться найденные подстроки; если на месте этого аргумента задан nil или этот аргумент опущен, то найденные подстроки будут заменяться пустой строкой (удаляться);
+all - флаг, указывающий, что применение регулярного выражения и выполнение замены должно производиться повторно пока будет обнаруживаться совпадение (true/false ); если на месте этого аргумента задан nil или этот аргумент опущен, то применение регулярного выражения и выполнение замены производится однократно (значение false );
+partial - флаг, разрешающий использовать частичное совпадение; может принимать значение 'soft' или 'hard'; для совместимости со старыми версиями может принимать значение true (равносильно значению 'soft'); если на месте этого аргумента задан nil или этот аргумент опущен, то частичные совпадения не используются;
+
+Возвращаемое значение: Если при исполнении регулярного выражения не было ошибок (даже если не найдено ни одной подстроки), то первым значением функция возвращает строку - результат обработки (в противном случае nil); вторым значением возвращается число произведенных замен; третьим значением функция возвращает позицию в результирующей строке, с которой начинается неизмененная часть; если в результате исполнения регулярного выражения произошла ошибка, то четвертым значением возвращается строка с описанием ошибки.
+
+Пример использования: s=re.replace(hc.answer_header, [[(?-s)(Cache-Control:.*\r\n)]], nil)
+
+register_regex	
+Регистрирует регулярное выражение.
+
+Аргументы функции:
+regex - регулярное выражение, заданное в этом аргументе, компилируется и результат компиляции сохраняется во внутреннем кэше регулярных выражений HandyCache;
+
+Возвращаемое значение: Возвращается идентификатор зарегистрированного регулярного выражения. В дальнейшем расширения могут использовать этот идентификатор при вызове функций в качестве аргумента вместо самого регулярного выражения;
+
+Пример использования:
+local reg_id=re.register_regex([[(?-s)(Cache-Control:.*\r\n)]])
+s=re.replace(hc.answer_header, reg_id, nil)
+
+registered_regex	
+Проверяет заегистрировано регулярное выражение с заданным идентификатором или нет.
+
+Аргументы функции:
+reg_id -  идентификатор регулярного выражения;
+
+Возвращаемое значение: true, если регулярное выражение с заданным идентификатором есть в кэше;
+
+Пример использования:
+local reg=[[(?-s)(Cache-Control:.*\r\n)]]
+if not re.registered_regex(reg_id) then reg_id= re.register_regex(reg) end
+
+unregister_regex	
+Удаляет из кэша регулярное выражение с заданным идентификатором (освобождает память).
+
+Аргументы функции:
+reg_id -  идентификатор регулярного выражения;
+
+Возвращаемое значение: Нет.
+
+Пример использования:  re.unregister_regex(reg_id)
+
+
+Хранение данных, используемых расширениями
+Для исполнения обработчиков событий в каждом потоке-обработчике соединения с клиентом создается своя lua-машина. Глобальные переменные, создаваемые обработчиками в lua -машине доступны для всех обработчиков, которые будут вызваны позднее в этом потоке.
+
+При загрузке каждого расширения в HandyCache создается пустая таблица hc_static, привязанная к этому расширению. Следом для каждого расширения вызывается обработчик Init (если таковой зарегистрирован). Он может сохранить значения в таблице hc_static и они будут доступны во всех обработчиках этого расширения при обработке всех последующих запросов. Также обработчик Options (вызывается нажатием кнопки Настройки расширения на вкладке Расширения ) может изменить значения в этой таблице (или добавить новые) и они будут доступны при обработке всех последующих запросов.
+
+Когда создается поток-обработчик запроса клиента, в нем создается копия таблицы hc_static для каждого расширения и внутри потока работа идет уже с этой копией. Обработчики событий могут добавлять/изменять переменные, но доступны эти значения будут только внутри этого потока.
+
+Обработчики событий при необходимости могут сохранять значения в глобальных переменных. Значения, сохраненные в глобальных переменных, с момента присвоения и до завершения работы программы становятся доступны из всех обработчиков всех потоков. Для доступа к глобальным переменным используются функции hc.set_global и hc.get_global.
+
+Графический интерфейс пользователя
+Расширения HandyCache как и другие программы на lua могут использовать графический интерфейс пользователя. Вот несколько примеров предназначенных для таких целей библиотек: wxlua, LuaInterface, VCLua. Мне наиболее подходящей для расширений HandyCache показалась библиотека VCLua (сравнительно просто использовать, малый размер dll). Пример использования этой библиотеки в обработчике события Options можно найти в расширении eCacheCleaner (для использования этой библиотеки в папке HandyCache должен находиться файл vcl.dll).
